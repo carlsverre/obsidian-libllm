@@ -1,11 +1,11 @@
 {
-	"id": "obsidian-sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-libllm",
+	"name": "LibLLM",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "This is a sample plugin for Obsidian. This plugin demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "LLM utilities for Obsidian",
+	"author": "Carl Sverre",
+	"authorUrl": "https://f0a.org",
+	"fundingUrl": "https://github.com/sponsors/carlsverre",
 	"isDesktopOnly": false
 }
