@@ -75,8 +75,6 @@ const frontmatter = tp.frontmatter;
 const prompt = await tp.system.prompt("Completion prompt");
 const context = JSON.stringify({ title, tags, frontmatter });
 
-console.log(context);
-
 tR = await libLLM.complete(`
 Use the following contextual data if needed:
 ${context}
