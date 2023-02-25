@@ -2,6 +2,18 @@
 
 LLM Utility functions for the [Obsidian](https://obsidian.md/) pkm.
 
+## Install
+
+1. Install the plugin
+    ```
+    cd <path to your obsidian vault>/.obsidian/plugins
+    git clone https://github.com/carlsverre/obsidian-libllm.git
+    ```
+
+2. Restart Obsidian
+3. Enable plugin in settings
+4. Configure plugin
+
 ## Commands
 
 ### Prompt Generation
