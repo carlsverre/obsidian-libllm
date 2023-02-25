@@ -1,3 +1,4 @@
+import { AxiosRequestHeaders } from "axios";
 import {
 	Configuration,
 	ConfigurationParameters,
@@ -5,7 +6,7 @@ import {
 	OpenAIApi,
 } from "openai";
 
-const DEFAULT_MODEL = "text-davinci-003";
+export const DEFAULT_MODEL = "text-davinci-003";
 
 export type CompletionParams = {
 	config: ConfigurationParameters;
@@ -15,10 +16,20 @@ export type CompletionParams = {
 	top_p?: number;
 };
 
+const AXIOS_REQUEST_CONFIG = {
+	timeout: 30000,
+	transformRequest: (data: unknown, headers?: AxiosRequestHeaders) => {
+		if (headers) {
+			delete headers["User-Agent"];
+		}
+		return data;
+	},
+};
+
 export const listModels = (config: ConfigurationParameters) => {
 	const configuration = new Configuration(config);
 	const client = new OpenAIApi(configuration);
-	return client.listModels();
+	return client.listModels(AXIOS_REQUEST_CONFIG);
 };
 
 export const complete = async (params: CompletionParams): Promise<string> => {
@@ -30,9 +41,13 @@ export const complete = async (params: CompletionParams): Promise<string> => {
 		prompt: params.prompt,
 		temperature: params.temperature,
 		top_p: params.top_p,
+		max_tokens: 1024,
 	};
 
-	const response = await client.createCompletion(completionRequest);
+	const response = await client.createCompletion(
+		completionRequest,
+		AXIOS_REQUEST_CONFIG
+	);
 	if (response.data.choices.length === 0) {
 		throw new Error("No completion returned");
 	}
@@ -42,5 +57,5 @@ export const complete = async (params: CompletionParams): Promise<string> => {
 		throw new Error("No completion returned");
 	}
 
-	return choice;
+	return choice.trim();
 };

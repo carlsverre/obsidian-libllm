@@ -1,4 +1,4 @@
-import { complete } from "libllm/openai";
+import { complete, DEFAULT_MODEL, listModels } from "libllm/openai";
 import {
 	App,
 	Editor,
@@ -9,16 +9,41 @@ import {
 	Setting,
 } from "obsidian";
 
-// Remember to rename these classes and interfaces!
-
 interface LLMSettings {
 	openaiSecretKey: string;
 	openaiOrganizationId: string;
+	openaiModel: string;
 }
 
 const DEFAULT_SETTINGS: LLMSettings = {
 	openaiSecretKey: "",
 	openaiOrganizationId: "",
+	openaiModel: DEFAULT_MODEL,
+};
+
+const generatePrompt = (editor: Editor) => {
+	const cursor = editor.getCursor("to");
+	let selection = editor.getSelection();
+	if (!selection) {
+		selection = editor.getLine(cursor.line);
+		cursor.ch = selection.length; // make sure we don't insert somewhere in the middle
+
+		// prepend lines to the prompt until we hit an empty line
+		let line = cursor.line - 1;
+		while (line >= 0) {
+			const lineText = editor.getLine(line);
+			if (lineText.trim() === "") {
+				break;
+			}
+			selection = lineText + "\n" + selection;
+			line--;
+		}
+	}
+
+	return {
+		prompt: selection,
+		endPos: cursor,
+	};
 };
 
 export default class LLMPlugin extends Plugin {
@@ -28,18 +53,24 @@ export default class LLMPlugin extends Plugin {
 		await this.loadSettings();
 
 		this.addCommand({
-			id: "selection-gpt3",
-			name: "Send selection to OpenAI GPT-3",
+			id: "complete",
+			name: "Complete",
 			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				const selection = editor.getSelection();
-				const result = await complete({
-					config: {
-						organization: this.settings.openaiOrganizationId,
-						apiKey: this.settings.openaiSecretKey,
-					},
-					prompt: selection,
-				});
-				new LLMResultModal(this.app, result).open();
+				const { prompt, endPos } = generatePrompt(editor);
+				const result = await this.complete(prompt);
+				editor.replaceRange("\n" + result, endPos);
+			},
+		});
+
+		this.addCommand({
+			id: "complete-with-instructions",
+			name: "Complete with instructions",
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const promptMeta = generatePrompt(editor);
+				const result = await this.completeWithInstructions(
+					promptMeta.prompt
+				);
+				editor.replaceRange("\n" + result, promptMeta.endPos);
 			},
 		});
 
@@ -59,22 +90,59 @@ export default class LLMPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	async complete(prompt: string) {
+		return await complete({
+			config: {
+				organization: this.settings.openaiOrganizationId,
+				apiKey: this.settings.openaiSecretKey,
+			},
+			prompt,
+		});
+	}
+
+	async completeWithInstructions(prompt: string): Promise<string> {
+		return new Promise((resolve) =>
+			new InstructionsModal(this.app, (instructions) => {
+				resolve(this.complete(`${instructions}:\n${prompt}`));
+			}).open()
+		);
+	}
 }
 
-class LLMResultModal extends Modal {
-	result: string;
+class InstructionsModal extends Modal {
+	onSubmit: (result: string) => void;
 
-	constructor(app: App, result: string) {
+	constructor(app: App, onSubmit: (result: string) => void) {
 		super(app);
-		this.result = result;
+		this.onSubmit = onSubmit;
 	}
 
 	onOpen() {
 		const { contentEl } = this;
-		contentEl.setText(this.result);
+
+		contentEl.createEl("h2", { text: "Instructions" });
+
+		const input = createEl("input");
+		input.type = "text";
+		input.placeholder = "Enter instructions here and press enter";
+		input.style.width = "100%";
+		input.addEventListener("keydown", (e) => {
+			if (e.currentTarget === input && e.key === "Enter") {
+				e.preventDefault();
+				e.stopPropagation();
+				this.close();
+				this.onSubmit(input.value);
+			}
+		});
+
+		contentEl.appendChild(input);
 	}
 
-	onClose() {}
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
 }
 
 class LLMSettingTab extends PluginSettingTab {
@@ -119,5 +187,35 @@ class LLMSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+		new Setting(containerEl)
+			.setName("OpenAI Model")
+			.setDesc("Which model to use for OpenAI requests.")
+			.addDropdown(async (dropdown) => {
+				try {
+					const models = await listModels({
+						organization: this.plugin.settings.openaiOrganizationId,
+						apiKey: this.plugin.settings.openaiSecretKey,
+					});
+					models.data.data
+						.sort((a, b) => a.id.localeCompare(b.id))
+						.forEach((model) =>
+							dropdown.addOption(model.id, model.id)
+						);
+				} catch (e) {
+					console.error(e);
+					dropdown.addOption(
+						this.plugin.settings.openaiModel,
+						this.plugin.settings.openaiModel
+					);
+				}
+
+				dropdown.setValue(this.plugin.settings.openaiModel);
+
+				dropdown.onChange(async (value) => {
+					this.plugin.settings.openaiModel = value;
+					await this.plugin.saveSettings();
+				});
+			});
 	}
 }

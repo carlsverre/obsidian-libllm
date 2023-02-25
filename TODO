@@ -1,6 +1,0 @@
-- finish up basic completion functionality
-- build out library of useful functions
-- default model selection in settings from models api
-- document how to export the utility functions to other plugins
-- build example of using this with templater
-- add insertion and editing helpers
